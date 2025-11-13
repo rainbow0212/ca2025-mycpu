@@ -38,6 +38,213 @@ The interrupt mechanism operates at instruction boundaries, ensuring that:
 - CSR state remains consistent
 - Nested interrupts are explicitly prevented through privilege controls
 
+## Lab Exercises
+
+This implementation contains 13 lab exercises marked with `CA25: Exercise` comments.
+Exercises guide students through implementing both base RV32I datapath (exercises 1-8) and new CSR/CLINT trap handling functionality (exercises 9-13).
+Each exercise includes inline hints and surrounding code examples to support independent implementation.
+
+### Exercise Overview
+
+Exercise 1: Immediate Extension (`InstructionDecode.scala`)
+- Implement S-type, B-type, and J-type immediate extraction with correct bit reordering and sign extension
+- I-type and U-type immediates provided as examples
+- Difficulty: Intermediate
+- Validation: InstructionDecoderTest
+- Key Concepts: RISC-V instruction encoding, bit manipulation, sign extension, immediate format variations
+
+Exercise 2: Control Signal Generation (`InstructionDecode.scala`)
+- Generate control signals for write-back source, ALU operand 1 source, and ALU operand 2 source based on instruction type
+- Support CSR read path to WriteBack, PC+4 for JAL/JALR, and immediate operand selection
+- Difficulty: Intermediate
+- Validation: InstructionDecoderTest
+- Key Concepts: Datapath control, multiplexer selection, CSR instruction support
+
+Exercise 3: ALU Control Logic (`ALUControl.scala`)
+- Map opcode/funct3/funct7 fields to ALU operation functions
+- Handle ADD/SUB distinction and SRL/SRA, SRLI/SRAI disambiguation using funct7[5]
+- Default to ADD for all other instruction types (address calculation)
+- Difficulty: Intermediate
+- Validation: ExecuteTest, CPUTest
+- Key Concepts: Instruction decoding, ALU operation selection, funct7 bit testing
+
+Exercise 4: Branch Comparison Logic (`Execute.scala`)
+- Implement six RV32I branch comparison conditions: BEQ/BNE (equality), BLT/BGE (signed), BLTU/BGEU (unsigned)
+- Use `.asSInt` conversion for signed comparisons, `.asUInt` for unsigned
+- Difficulty: Intermediate
+- Validation: ExecuteTest, CPUTest branch tests
+- Key Concepts: Signed vs unsigned comparison, branch condition evaluation, type conversion
+
+Exercise 5: Jump Target Address Calculation (`Execute.scala`)
+- Compute branch target (PC + immediate), JAL target (PC + immediate), and JALR target ((rs1 + immediate) & ~1)
+- JALR must clear LSB per RISC-V specification to ensure proper alignment
+- Difficulty: Beginner-Intermediate
+- Validation: ExecuteTest, CPUTest control flow tests
+- Key Concepts: PC-relative addressing, JALR LSB clearing, target address computation
+
+Exercise 6: Load Data Extension (`MemoryAccess.scala`)
+- Implement byte and halfword load operations with sign and zero extension
+- Extract byte/halfword based on address index; apply Fill for sign extension or zero extension
+- LB uses byte[7] as sign bit; LH uses half[15] as sign bit; LW is passthrough
+- Difficulty: Intermediate
+- Validation: ByteAccessTest in CPUTest
+- Key Concepts: Byte/halfword extraction, sign extension, zero extension, address-based selection
+
+Exercise 7: Store Data Alignment (`MemoryAccess.scala`)
+- Implement store operations with correct byte strobes and data alignment
+- SB enables one byte strobe and shifts data by index×8 bits; SH enables two strobes and shifts by 16 bits for upper halfword
+- SW enables all four strobes without shifting
+- Difficulty: Intermediate
+- Validation: ByteAccessTest in CPUTest
+- Key Concepts: Byte strobes, data shifting, memory write alignment, strobe patterns
+
+Exercise 8: WriteBack Source Selection with CSR Support (`WriteBack.scala`)
+- Extend write-back multiplexer to include CSR read data alongside ALU result, memory data, and PC+4
+- Select appropriate source based on instruction type for proper register file write-back
+- Difficulty: Beginner
+- Validation: ExecuteTest (CSR write-back), CPUTest
+- Key Concepts: Multiplexer design, write-back datapath, CSR integration
+
+Exercise 9: CSR Register Lookup Table (`CSR.scala`)
+- Map CSR addresses (mstatus, mie, mtvec, mscratch, mepc, mcause) to backing registers
+- Split 64-bit cycle counter into CycleL (low 32 bits) and CycleH (high 32 bits)
+- Implement MuxLookup for CSR address to register value mapping
+- Difficulty: Beginner
+- Validation: CLINTCSRTest
+- Key Concepts: CSR address space, register mapping, 64-bit counter handling
+
+Exercise 10: CSR Write Priority Logic (`CSR.scala`)
+- Implement atomic write priority: CLINT writes (trap entry/exit) take priority over CPU CSR instruction writes
+- CLINT has priority for mstatus/mepc/mcause; CPU-only writes for mie/mtvec/mscratch
+- Ensures trap state updates are atomic and cannot be corrupted
+- Difficulty: Advanced
+- Validation: CLINTCSRTest
+- Key Concepts: Atomic operations, write priority, interrupt atomicity, CSR access arbitration
+
+Exercise 11: Interrupt Entry - mstatus State Transition (`CLINT.scala`)
+- Implement mstatus register update during interrupt/exception entry
+- Save current MIE to MPIE (bit 7 ← bit 3), clear MIE to 0 (disable nested interrupts)
+- Save return address to mepc, record cause in mcause with bit 31 indicating interrupt vs exception
+- Difficulty: Intermediate
+- Validation: CLINTCSRTest
+- Key Concepts: Interrupt handling, mstatus bit semantics, trap state machine, atomic CSR updates
+
+Exercise 12: Trap Return (MRET) - mstatus State Restoration (`CLINT.scala`)
+- Implement mstatus register update during trap return via MRET instruction
+- Restore MIE from MPIE (bit 3 ← bit 7), reset MPIE to 1 per specification
+- Return PC to mepc value for resuming interrupted program
+- Difficulty: Intermediate
+- Validation: CLINTCSRTest
+- Key Concepts: Trap exit, interrupt re-enabling, state restoration, MRET semantics
+
+Exercise 13: PC Update Logic with Interrupts (`InstructionFetch.scala`)
+- Implement PC update with interrupt priority: interrupt handler address (highest), jump/branch target, or PC+4 (sequential)
+- Hold PC and output NOP when instruction_valid is false
+- Ensures interrupts are recognized at instruction boundaries with proper atomicity
+- Difficulty: Beginner-Intermediate
+- Validation: InstructionFetchTest, CLINTCSRTest
+- Key Concepts: PC management, interrupt vectoring, instruction fetch control, priority handling
+
+### Exercise Implementation Workflow
+
+Recommended implementation order follows datapath stages and dependencies:
+
+Phase 1: Base Datapath (Exercises 1-5)
+- Immediate Extension (Exercise 1) provides foundation for all instruction types
+- ALU Control Logic (Exercise 3) enables arithmetic and logical operations
+- Branch Comparison (Exercise 4) implements conditional control flow
+- Jump Target Calculation (Exercise 5) completes unconditional control flow
+- Control Signal Generation (Exercise 2) ties decode stage together
+- Run InstructionDecoderTest and ExecuteTest to validate base datapath
+
+Phase 2: Memory Operations (Exercises 6-7)
+- Load Data Extension (Exercise 6) implements byte/halfword reads with proper extension
+- Store Data Alignment (Exercise 7) implements byte/halfword writes with strobes
+- Run ByteAccessTest to validate memory access alignment and extension logic
+
+Phase 3: CSR Integration (Exercises 8-10)
+- WriteBack CSR Support (Exercise 8) adds CSR data path to register file
+- CSR Register Lookup (Exercise 9) implements CSR address to register mapping
+- CSR Write Priority (Exercise 10) ensures atomic trap handling with priority arbitration
+- Run ExecuteTest (CSR operations) and CLINTCSRTest to validate CSR functionality
+
+Phase 4: Trap Handling (Exercises 11-13)
+- Interrupt Entry (Exercise 11) implements trap entry state machine with mstatus transitions
+- MRET Return (Exercise 12) implements trap exit and interrupt re-enabling
+- PC Update with Interrupts (Exercise 13) adds interrupt vectoring to instruction fetch
+- Run CLINTCSRTest and InstructionFetchTest to validate complete trap handling sequence
+
+Final Validation:
+- Run full CPUTest suite (Fibonacci, Quicksort, InterruptTrap)
+- Run RISCOF compliance tests (119 tests for RV32I + Zicsr)
+
+### CSR and CLINT Concepts
+
+mstatus Register (0x300):
+- Bit 3 (MIE): Machine Interrupt Enable - global interrupt enable flag
+- Bit 7 (MPIE): Machine Previous Interrupt Enable - saves MIE state during trap entry
+- Trap entry: MPIE ← MIE, MIE ← 0 (save and disable interrupts)
+- Trap exit (MRET): MIE ← MPIE, MPIE ← 1 (restore interrupts and reset MPIE)
+
+mtvec Register (0x305):
+- Trap vector base address pointing to trap handler entry point
+- Direct mode only (no vectored interrupts): all traps jump to same address
+- Lower 2 bits must be zero (4-byte alignment)
+
+mepc Register (0x341):
+- Exception Program Counter storing return address for trap exit
+- Saves PC+4 during trap entry (address of next instruction to execute after return)
+- MRET instruction restores PC from mepc to resume interrupted program
+
+mcause Register (0x342):
+- Trap cause encoding with interrupt/exception distinction
+- Bit 31: Interrupt flag (1 = hardware interrupt, 0 = software exception)
+- Bits 30:0: Exception code (3 = breakpoint, 11 = M-mode ecall for exceptions; 11 = external interrupt for interrupts)
+
+CSR Write Priority:
+- CLINT direct_write_enable=1: CLINT atomically writes mstatus/mepc/mcause during trap entry/exit
+- CLINT direct_write_enable=0: CPU CSR instructions can modify all CSRs normally
+- Priority ensures trap state updates are atomic and cannot be interrupted or corrupted
+- CLINT never writes mie/mtvec/mscratch (CPU-only CSRs)
+
+### Debugging CSR and CLINT
+
+VCD Signal Monitoring Checklist:
+
+CSR State Signals:
+- Monitor `csr.mstatus` for MIE (bit 3) and MPIE (bit 7) transitions
+- Monitor `csr.mepc` to verify saved return address during trap entry
+- Monitor `csr.mcause` to check interrupt bit (bit 31) and cause code
+- Monitor `csr.mtvec` to confirm trap handler address
+
+CLINT Control Signals:
+- Monitor `clint.interrupt_flag` for external interrupt input from peripherals
+- Monitor `clint.interrupt_assert` for trap entry indicator
+- Monitor `clint.interrupt_handler_address` for target handler address
+- Monitor `clint.direct_write_enable` for CSR write priority assertion
+
+Instruction Fetch Signals:
+- Monitor `if.pc` to trace program counter evolution
+- Monitor `if.jump_flag_id` and `if.jump_address_id` for control flow changes
+- Monitor `if.interrupt_assert` to see interrupt vectoring priority
+
+Expected Interrupt Sequence:
+1. Peripheral asserts interrupt signal
+2. CLINT detects interrupt when mstatus.MIE=1 and interrupt enabled in mie
+3. Same cycle: mstatus.MIE → 0, mstatus.MPIE ← MIE, mepc ← PC+4, mcause ← interrupt code
+4. Next cycle: PC → mtvec (jump to trap handler)
+5. Trap handler executes (saves context, handles interrupt, restores context)
+6. MRET instruction: mstatus.MIE ← MPIE, mstatus.MPIE → 1
+7. Next cycle: PC → mepc (return to interrupted program)
+
+Common Debugging Issues:
+- Wrong mstatus transitions: verify MPIE←MIE and MIE←0 on entry; MIE←MPIE and MPIE←1 on MRET
+- CSR priority violation: ensure CLINT writes override CPU when direct_write_enable=1
+- Wrong mcause encoding: check bit 31 for interrupt flag and correct cause code in bits 30:0
+- Missing interrupt priority: verify interrupt_assert checked before jump_flag in PC update
+- Incorrect sign extension: verify byte[7] for LB, half[15] for LH as sign bits
+- Wrong halfword selection: verify address bit [1] selects bytes(1,0) vs bytes(3,2)
+
 ## Control and Status Registers (CSR)
 
 CSRs form an independent 4096-byte address space separate from general-purpose registers. According to the RISC-V ISA specification, "CSR instructions are atomic read-modify-write operations," requiring special handling in the processor pipeline.
