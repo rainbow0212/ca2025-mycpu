@@ -157,7 +157,7 @@ class CPU extends Module {
   clint.io.instruction_ex         := id2ex.io.output_instruction
   clint.io.jump_flag              := ex.io.clint_jump_flag
   clint.io.jump_address           := ex.io.clint_jump_address
-  clint.io.interrupt_flag         := if2id.io.output_interrupt_flag
+  clint.io.interrupt_flag         := io.interrupt_flag // Direct connection, bypass IF2ID pipeline delay
   clint.io.csr_bundle <> csr_regs.io.clint_access_bundle
 
   csr_regs.io.reg_read_address_id    := id.io.ex_csr_address
