@@ -43,7 +43,9 @@ bss_clear_done:
   call main
 
   # Halt loop if main returns
+  # Use wfi (Wait For Interrupt) for power efficiency
 loop:
+  wfi
   j loop
 .globl enable_interrupt
 enable_interrupt:
@@ -166,5 +168,7 @@ __stack_overflow_trap:
   sw zero, 0(t0)
 
   # Infinite loop as final safety net
+  # Use wfi (Wait For Interrupt) for power efficiency
 __stack_overflow_halt:
+  wfi
   j __stack_overflow_halt

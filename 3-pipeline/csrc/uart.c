@@ -178,7 +178,8 @@ int main(void)
     *TEST_RESULT = result;
     *DONE_FLAG = 0xCAFEF00D;
 
+    /* Use wfi (Wait For Interrupt) for power efficiency */
     while (1)
-        ;
+        __asm__ volatile("wfi");
     return 0;
 }

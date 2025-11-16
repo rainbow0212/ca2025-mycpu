@@ -9,6 +9,7 @@ int main()
 {
     *((int *) 0x4) = 0xDEADBEEF;
     enable_interrupt();
+    /* Use wfi (Wait For Interrupt) for power efficiency */
     for (;;)
-        ;
+        __asm__ volatile("wfi");
 }
